@@ -62,7 +62,8 @@ _start:
      * 运行在物理地址，可直接访问 boot_pde/boot_pt0（VMA=物理地址）
      * 返回值 %eax = 页目录物理地址
      */
-    call setup_paging_c
+    movl $setup_paging_c, %eax
+    call *%eax
 
     /* 加载 CR3：设置页目录基址寄存器 */
     movl %eax, %cr3

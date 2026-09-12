@@ -1,13 +1,18 @@
 # VIKI操作系统构建脚本
 
 # 编译器设置
-CC = gcc
-AS = gcc
-LD = ld
+CC = clang --target=i386-elf
+AS = clang --target=i386-elf
+LD = ld.lld -m elf_i386
+# 删除 -m32，保留其他 CFLAGS
+#CC = i686-linux-gnu-gcc
+#AS = i686-linux-gnu-as
+#LD = i686-linux-gnu-ld
 
 # 编译选项
-CFLAGS = -m32 -ffreestanding -fno-stack-protector -fno-pic -nostdlib -Wall -Wextra -I./include -g
-ASFLAGS = -m32 -g
+CFLAGS = -ffreestanding -fno-stack-protector -fno-pic -nostdlib -Wall -Wextra -I./include -g -march=i386 -mno-sse -mno-mmx -mno-80387 -mno-fp-ret-in-387 -msoft-float
+#CFLAGS = -ffreestanding -fno-stack-protector -fno-pic -nostdlib -Wall -Wextra -I./include -g
+ASFLAGS = -g
 LDFLAGS = -m elf_i386 -T linker.ld
 
 # 目标文件
