@@ -7,6 +7,7 @@
 #include "../include/mmu.h"
 #include "tss.h" //注意，此处用于TSS
 #include "syscall.h"  //新增syscall
+#include "keyboard.h"
 
 extern uint8_t boot_stack_top[];   /* 来自 boot.S，引导栈顶 */
 extern void enter_ring3(uint32_t entry, uint32_t stack_top);
@@ -53,6 +54,8 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     kprintf("Interrupt subsystem initialized successfully!\n");
     syscall_init();
     syscall_selftest();
+    keyboard_init();
+    kprintf("Keyboard initialized.\n");
     /* 打印 multiboot2 提供的物理内存布局 */
     memory_print_map(addr);
 
@@ -86,6 +89,7 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     kprintf("Kernel entered protected mode with paging!\n");
     kprintf("Running in high-half kernel at 0xC0100000+\n");
     kprintf("System ready.\n");
+
     kprintf("\n[ring3] entering user mode...\n");
     enter_ring3((uint32_t)user_entry, 0x301000);
     while (1) { __asm__ volatile ("hlt"); }

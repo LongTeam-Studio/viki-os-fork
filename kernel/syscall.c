@@ -1,6 +1,7 @@
 #include "../include/syscall.h"
 #include "../include/vga.h"
 #include "../include/interrupt.h"
+#include "../include/keyboard.h"
 
 /*
  * 系统调用分发
@@ -35,7 +36,16 @@ void syscall_handler(struct pt_regs *regs) {
             vga_puts("System halted.\n");
             while (1) { __asm__ volatile ("hlt"); }
             break;
-
+        case 3: {   /* SYS_read */
+            int c = keyboard_getchar();
+            if (c < 0) {
+            regs->eax = 0;
+            break;
+            }
+            *(char *)regs->ecx = (char)c;
+            regs->eax = 1;
+            break;
+            }
         case SYS_getpid:
             regs->eax = 1;
             break;

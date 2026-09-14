@@ -5,6 +5,7 @@
 #include "../include/gdt.h"
 #include "../include/mmu.h"
 #include "../include/syscall.h"
+#include "../include/keyboard.h"
 
 /* 定义中断处理函数指针数组，保存每个中断向量的C处理函数 */
 static void (*interrupt_handlers[IDT_ENTRIES])(struct pt_regs *);
@@ -52,7 +53,7 @@ void pic_init(void) {
     outb(PIC2_DATA, b1);
 
     /* 全部屏蔽，只在需要时打开特定IRQ */
-    outb(PIC1_DATA, 0xff);
+    outb(PIC1_DATA, 0xFD);
     outb(PIC2_DATA, 0xff);
 }
 
@@ -120,6 +121,7 @@ void interrupt_handler(struct pt_regs *regs) {
          }
     /* 如果是硬件中断，发送EOI */
     else if (regs->int_no >= IRQ0 && regs->int_no <= IRQ15) {
+        if (regs->int_no == IRQ1) { keyboard_irq(); }
         /* 执行注册的处理函数，如果有的话 */
         if (interrupt_handlers[regs->int_no]) {
             interrupt_handlers[regs->int_no](regs);
@@ -219,4 +221,7 @@ void interrupt_init(void) {
 
     /* 初始化8259PIC */
     pic_init();
+    /* 打开 CPU 中断总开关，让 IRQ 能进 CPU */
+    __asm__ volatile ("sti");
 }
+
