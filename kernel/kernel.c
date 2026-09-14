@@ -5,6 +5,12 @@
 #include "../include/memory.h"
 #include "../include/pmm.h"
 #include "../include/mmu.h"
+#include "tss.h" //注意，此处用于TSS
+#include "syscall.h"  //新增syscall
+
+extern uint8_t boot_stack_top[];   /* 来自 boot.S，引导栈顶 */
+extern void enter_ring3(uint32_t entry, uint32_t stack_top);
+extern void user_entry(void);
 
 /*
  * kernel_main - 内核主函数（C 语言入口）
@@ -38,10 +44,15 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     gdt_init();
     kprintf("GDT initialized successfully!\n");
 
+    /* 初始化 TSS：esp0 指向引导栈顶，ring3 进 ring0 时 CPU 会自动切换到这个栈 */
+    tss_init((uint32_t)boot_stack_top);
+    kprintf("TSS initialized successfully!\n");
+
     /* 初始化中断系统：IDT + 8259 PIC + 异常/中断处理函数 */
     interrupt_init();
     kprintf("Interrupt subsystem initialized successfully!\n");
-
+    syscall_init();
+    syscall_selftest();
     /* 打印 multiboot2 提供的物理内存布局 */
     memory_print_map(addr);
 
@@ -75,6 +86,7 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     kprintf("Kernel entered protected mode with paging!\n");
     kprintf("Running in high-half kernel at 0xC0100000+\n");
     kprintf("System ready.\n");
-
+    kprintf("\n[ring3] entering user mode...\n");
+    enter_ring3((uint32_t)user_entry, 0x301000);
     while (1) { __asm__ volatile ("hlt"); }
 }

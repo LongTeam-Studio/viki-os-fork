@@ -88,6 +88,15 @@ SECTIONS
      */
     _kernel_end = .;
     _kernel_phys_end = _kernel_end - KERNEL_VMA;
+   
+    /*
+     * 用户态程序段：VMA = LMA = 0x200000
+     * 运行在 ring3，通过 identity 映射直接访问。
+     */
+          .user 0x200000 : AT(0x200000) {
+          *(.user)
+    }
+    _user_end = .;
 
     /*
      * 丢弃不需要的 ELF 节，避免干扰内核内存布局

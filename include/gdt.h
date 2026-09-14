@@ -3,8 +3,17 @@
 
 #include <stdint.h>
 
-#define GDT_ENTRIES 6
-#define GDT_SIZE (GDT_ENTRIES * 8)
+//#define GDT_ENTRIES 8
+//#define GDT_SIZE (GDT_ENTRIES * 8)
+
+#define GDT_ENTRIES 8   /* 7 是 TSS 高 8 字节槽，8 保持 8 字节对齐 */
+
+#define GDT_TSS 5
+#define GDT_TSS_SEL (GDT_TSS << 3)
+
+void gdt_set_gate_raw(int num, uint32_t base, uint32_t limit,
+                      uint8_t access, uint8_t granularity);
+void gdt_set_gate_raw_high(int num, uint8_t base_high);
 
 #define GDT_NULL 0
 #define GDT_KERNEL_CODE 1

@@ -16,7 +16,8 @@ ASFLAGS = -g
 LDFLAGS = -m elf_i386 -T linker.ld
 
 # 目标文件
-BOOT_OBJ = boot/boot.o boot/gdt_flush.o
+#历史定义:BOOT_OBJ = boot/boot.o boot/gdt_flush.o
+BOOT_OBJ = boot/boot.o boot/gdt_flush.o boot/tss_flush.o #新定义，特别声明LongTeam目前是个人维护
 KERNEL_BIN = kernel.bin
 
 KERNEL_SRC := $(wildcard kernel/*.c)

@@ -4,6 +4,7 @@
 #include "../include/vga.h"
 #include "../include/gdt.h"
 #include "../include/mmu.h"
+#include "../include/syscall.h"
 
 /* 定义中断处理函数指针数组，保存每个中断向量的C处理函数 */
 static void (*interrupt_handlers[IDT_ENTRIES])(struct pt_regs *);
@@ -113,6 +114,10 @@ void interrupt_handler(struct pt_regs *regs) {
         /* 这里可以添加死循环或panic */
         while (1) { __asm__ volatile ("hlt"); }
     } 
+        /* 系统调用 int 0x80 */
+        else if (regs->int_no == SYSCALL_INT) {
+        syscall_handler(regs);
+         }
     /* 如果是硬件中断，发送EOI */
     else if (regs->int_no >= IRQ0 && regs->int_no <= IRQ15) {
         /* 执行注册的处理函数，如果有的话 */

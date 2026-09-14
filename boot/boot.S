@@ -131,6 +131,7 @@ boot_pt0:
 .align 16
 boot_stack_bottom:
     .skip STACK_SIZE
+.global boot_stack_top
 boot_stack_top:
 
 /* ============ 内核主体段：高虚拟地址 0xC0100000+ ============ */

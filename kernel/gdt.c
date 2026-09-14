@@ -15,6 +15,17 @@ static void gdt_set_gate(int num, uint32_t base, uint32_t limit, uint8_t access,
     gdt[num].access = access;
 }
 
+void gdt_set_gate_raw(int num, uint32_t base, uint32_t limit,
+                      uint8_t access, uint8_t granularity) {
+    gdt_set_gate(num, base, limit, access, granularity);
+}
+
+void gdt_set_gate_raw_high(int num, uint8_t base_high) {
+    uint8_t *p = (uint8_t *)&gdt[num];
+    for (int i = 0; i < 8; i++) p[i] = 0;
+    p[0] = base_high;
+}
+
 void gdt_init(void) {
     gdt_ptr.limit = (sizeof(struct gdt_entry) * GDT_ENTRIES) - 1;
     gdt_ptr.base = (uint32_t)&gdt;
