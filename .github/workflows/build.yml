@@ -1,0 +1,55 @@
+name: build
+
+on:
+  push:
+    branches: [ master, 'feat/**' ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang lld make \
+            xorriso mtools \
+            grub-pc-bin grub-common \
+            qemu-system-x86
+
+      - name: Show versions
+        run: |
+          clang --version | head -n 1
+          ld.lld --version
+          grub-mkrescue --version
+          qemu-system-i386 --version | head -n 1
+
+      - name: Build kernel
+        run: make clean && make
+
+      - name: Build ISO
+        run: make iso
+
+      - name: Boot test in QEMU
+        run: |
+          timeout 20 qemu-system-i386 -cdrom viki-os.iso -m 256 \
+            -display none -serial stdio > serial.log 2>&1 || true
+          echo "----- serial.log -----"
+          cat serial.log
+          echo "----------------------"
+          grep -q "System ready." serial.log
+          grep -q "Hello from user mode!" serial.log
+          grep -q "System halted." serial.log
+
+      - name: Upload serial log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: serial-log
+          path: serial.log
