@@ -27,7 +27,8 @@ make run_qemu_serial
 #### 请使用AI coding
 1. 为了项目统一规范，尽可能在你使用的AI工具中保持`AGENTS.md`定义
 2. 每个功能的完成后，将相关`提示词`放到`user_prompt/prompt.md`中
-3. AI coding之后必须要经过构建调试
+3. 请保证**一个完整功能一个commit/pr**
+4. AI coding之后必须要经过构建调试
 
 #### 构建要求
 1. 优先保证x64架构linux平台可以顺利构建运行
