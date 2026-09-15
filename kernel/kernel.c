@@ -8,10 +8,39 @@
 #include "tss.h" //注意，此处用于TSS
 #include "syscall.h"  //新增syscall
 #include "keyboard.h"
+#include "process.h"
 
 extern uint8_t boot_stack_top[];   /* 来自 boot.S，引导栈顶 */
 extern void enter_ring3(uint32_t entry, uint32_t stack_top);
 extern void user_entry(void);
+
+/*
+ *
+ *
+ *
+ * 多线程处理，不知道咋写介绍，就当做手工水印，空着
+ *
+ *
+ *
+ */
+
+static void thread_a(void) {
+    while (1) {
+        vga_putc('A');
+    }
+}
+
+static void thread_b(void) {
+    while (1) {
+        vga_putc('B');
+    }
+}
+
+static void idle(void) {
+    while (1) {
+        __asm__ volatile ("hlt");
+    }
+}
 
 /*
  * kernel_main - 内核主函数（C 语言入口）
@@ -89,8 +118,8 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     kprintf("Kernel entered protected mode with paging!\n");
     kprintf("Running in high-half kernel at 0xC0100000+\n");
     kprintf("System ready.\n");
-
-    kprintf("\n[ring3] entering user mode...\n");
-    enter_ring3((uint32_t)user_entry, 0x301000);
+    process_init();
+    process_create("idle", idle);
+    process_create_user("shell", (void (*)(void))user_entry, 0x301000);
     while (1) { __asm__ volatile ("hlt"); }
 }
