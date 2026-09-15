@@ -8,7 +8,8 @@
  */
 
 .global interrupt_handler
-
+.extern current_process
+.extern interrupt_handler
 /* 保存所有段寄存器和通用寄存器，栈指针指向pt_regs结构
  * cdecl调用约定: 第一参数通过栈传递，所以我们直接把esp压栈，让它成为第一个参数
  */
@@ -19,11 +20,22 @@
     pushl %gs
     pusha                 /* 保存所有通用寄存器 */
     pushl %esp            /* 栈指针就是pt_regs*，压入栈作为C函数第一参数 */
-    cli                   /* 进入中断处理前关闭中断，禁止嵌套 */
+    cli                   /* 保存当前 esp 到 current_process->esp（偏移 8） */
+    movl current_process, %ecx
+    testl %ecx, %ecx
+    jz 1f
+    movl %esp, 8(%ecx)
+1:                        /* 进入中断处理前关闭中断，禁止嵌套 */
 .endm
 
 /* 恢复所有寄存器，从中断返回，清理栈 */
 .macro RESTORE_ALL
+    /* 从 current_process->esp 恢复 esp */
+    movl current_process, %ecx
+    testl %ecx, %ecx
+    jz 1f
+    movl 8(%ecx), %esp
+1:
     addl $4, %esp        /* 清理call压入的返回地址和我们压入的参数(pt_regs*) */
     popa                 /* 恢复通用寄存器 */
     popl %gs

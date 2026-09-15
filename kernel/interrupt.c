@@ -6,6 +6,8 @@
 #include "../include/mmu.h"
 #include "../include/syscall.h"
 #include "../include/keyboard.h"
+#include "../include/pit.h"
+#include "../include/process.h"
 
 /* 定义中断处理函数指针数组，保存每个中断向量的C处理函数 */
 static void (*interrupt_handlers[IDT_ENTRIES])(struct pt_regs *);
@@ -53,7 +55,7 @@ void pic_init(void) {
     outb(PIC2_DATA, b1);
 
     /* 全部屏蔽，只在需要时打开特定IRQ */
-    outb(PIC1_DATA, 0xFD);
+    outb(PIC1_DATA, 0xFC);
     outb(PIC2_DATA, 0xff);
 }
 
@@ -127,6 +129,10 @@ void interrupt_handler(struct pt_regs *regs) {
             interrupt_handlers[regs->int_no](regs);
         }
         pic_send_eoi(regs->int_no - IRQ0);
+        if (regs->int_no == IRQ0) {
+            timer_handler();
+            schedule();
+        }
     }
 }
 
