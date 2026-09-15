@@ -8,6 +8,5 @@
 *.bin
 *.iso
 .opencode
-AGENTS.md
 *.excalidraw
 *.drawio
