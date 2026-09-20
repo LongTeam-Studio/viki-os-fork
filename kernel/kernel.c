@@ -5,6 +5,7 @@
 #include "../include/memory.h"
 #include "../include/pmm.h"
 #include "../include/mmu.h"
+#include "../include/process.h"
 
 /*
  * kernel_main - 内核主函数（C 语言入口）
@@ -74,6 +75,10 @@ void kernel_main(unsigned int magic, unsigned int addr) {
 
     kprintf("Kernel entered protected mode with paging!\n");
     kprintf("Running in high-half kernel at 0xC0100000+\n");
+    /* PCB 验证：创建两个内核线程测试入队 */
+    process_init();
+    process_create("test_a", 0);
+    process_create("test_b", 0);
     kprintf("System ready.\n");
 
     while (1) { __asm__ volatile ("hlt"); }

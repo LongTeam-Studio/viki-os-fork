@@ -1,0 +1,48 @@
+name: build
+
+on:
+  push:
+    branches: [ 'feat/**' ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc gcc-multilib make binutils \
+            xorriso mtools \
+            grub-pc-bin grub-common \
+            qemu-system-x86
+
+      - name: Build kernel
+        run: make clean && make
+
+      - name: Build ISO
+        run: make iso
+
+      - name: Boot test in QEMU
+        run: |
+          timeout 20 qemu-system-i386 -cdrom viki-os.iso -m 256 \
+            -display none -serial stdio > serial.log 2>&1 || true
+          echo "----- serial.log -----"
+          cat serial.log
+          echo "----------------------"
+          grep -q "System ready." serial.log
+          grep -q "process_create: pid=1 name=test_a" serial.log
+          grep -q "process_create: pid=2 name=test_b" serial.log
+
+      - name: Upload serial log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: serial-log
+          path: serial.log
