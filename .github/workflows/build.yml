@@ -37,6 +37,8 @@ jobs:
           cat serial.log
           echo "----------------------"
           grep -q "System ready." serial.log
+          grep -q "process_create: pid=1 name=test_a" serial.log
+          grep -q "process_create: pid=2 name=test_b" serial.log
           grep -q "tick=" serial.log
 
       - name: Upload serial log
