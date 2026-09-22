@@ -4,6 +4,7 @@
 #include "../include/vga.h"
 #include "../include/gdt.h"
 #include "../include/mmu.h"
+#include "../include/pit.h"
 
 /* 定义中断处理函数指针数组，保存每个中断向量的C处理函数 */
 static void (*interrupt_handlers[IDT_ENTRIES])(struct pt_regs *);
@@ -50,8 +51,8 @@ void pic_init(void) {
     outb(PIC1_DATA, a1);
     outb(PIC2_DATA, b1);
 
-    /* 全部屏蔽，只在需要时打开特定IRQ */
-    outb(PIC1_DATA, 0xff);
+    /* 屏蔽所有 IRQ，只放行 IRQ0（PIT 时钟） */
+    outb(PIC1_DATA, 0xfe);
     outb(PIC2_DATA, 0xff);
 }
 
@@ -120,6 +121,10 @@ void interrupt_handler(struct pt_regs *regs) {
             interrupt_handlers[regs->int_no](regs);
         }
         pic_send_eoi(regs->int_no - IRQ0);
+        /* IRQ0：时钟中断，累加 tick */
+        if (regs->int_no == IRQ0) {
+            timer_handler();
+        }
     }
 }
 
@@ -214,4 +219,9 @@ void interrupt_init(void) {
 
     /* 初始化8259PIC */
     pic_init();
+    /* 初始化 PIT，100Hz，产生 IRQ0 */
+    pit_init(100);
+
+    /* 打开中断总开关，允许 IRQ0 进 CPU */
+    __asm__ volatile ("sti");
 }

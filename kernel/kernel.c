@@ -5,6 +5,7 @@
 #include "../include/memory.h"
 #include "../include/pmm.h"
 #include "../include/mmu.h"
+#include "../include/pit.h"
 
 /*
  * kernel_main - 内核主函数（C 语言入口）
@@ -75,6 +76,17 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     kprintf("Kernel entered protected mode with paging!\n");
     kprintf("Running in high-half kernel at 0xC0100000+\n");
     kprintf("System ready.\n");
+    /* PIT 验证：观察 tick 累加 */
+    {
+        uint64_t last_tick = 0;
+        for (volatile int i = 0; i < 30000000; i++) {
+            uint64_t t = timer_get_ticks();
+            if (t != last_tick) {
+                last_tick = t;
+                kprintf("tick=%u\n", (uint32_t)t);
+            }
+        }
+    }
 
     while (1) { __asm__ volatile ("hlt"); }
 }
