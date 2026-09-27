@@ -102,5 +102,8 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     process_create("b", thread_b);
     kprintf("System ready. Tasks scheduled by IRQ0.\n");
 
+    /* 最后一刻才开中断，避免前面的输出被 IRQ0 撕裂 */
+    __asm__ volatile ("sti");
+
     while (1) { __asm__ volatile ("hlt"); }
 }

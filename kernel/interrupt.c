@@ -223,7 +223,4 @@ void interrupt_init(void) {
     pic_init();
     /* 初始化 PIT，100Hz，产生 IRQ0 */
     pit_init(100);
-
-    /* 打开中断总开关，允许 IRQ0 进 CPU */
-    __asm__ volatile ("sti");
 }
