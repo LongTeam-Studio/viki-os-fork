@@ -13,26 +13,25 @@
  * cdecl调用约定: 第一参数通过栈传递，所以我们直接把esp压栈，让它成为第一个参数
  */
 .macro SAVE_ALL
-    pushl %ds             /* 保存当前数据段选择子 */
+    pusha                 /* 先压通用寄存器：edi, esi, ebp, esp, ebx, edx, ecx, eax (低→高) */
+    pushl %ds
     pushl %es
     pushl %fs
-    pushl %gs
-    pusha                 /* 保存所有通用寄存器 */
-    pushl %esp            /* 栈指针就是pt_regs*，压入栈作为C函数第一参数 */
-    cli                   /* 进入中断处理前关闭中断，禁止嵌套 */
+    pushl %gs             /* 最后压 gs，使 gs 位于最低地址，即 pt_regs 起始处 */
+    pushl %esp            /* 将指向 gs 的指针作为 C 函数参数压栈 */
+    cli                   /* 关中断 */
 .endm
 
-/* 恢复所有寄存器，从中断返回，清理栈 */
 .macro RESTORE_ALL
-    addl $4, %esp        /* 清理call压入的返回地址和我们压入的参数(pt_regs*) */
-    popa                 /* 恢复通用寄存器 */
+    addl $4, %esp         /* 跳过参数 pt_regs*（返回地址已由 ret 弹出） */
     popl %gs
     popl %fs
     popl %es
-    popl %ds             /* 恢复段寄存器 */
-    addl $8, %esp        /* 清理int_no和err_code，共8字节 */
-    sti                  /* 恢复中断允许 */
-    iret                 /* 从中断返回，CPU自动弹出eip/cs/eflags等 */
+    popl %ds              /* 恢复段寄存器 */
+    popa                  /* 恢复通用寄存器 */
+    addl $8, %esp         /* 跳过 int_no 和 err_code */
+    sti                   /* 开中断 */
+    iret                  /* 中断返回，CPU 自动弹出 eip/cs/eflags/useresp/ss */
 .endm
 
 /*
