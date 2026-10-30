@@ -28,6 +28,7 @@
 /* 页表项标志位 */
 #define BOOT_PAGE_PRESENT  0x001
 #define BOOT_PAGE_RW       0x002
+#define BOOT_PAGE_USER     0x004
 
 /*
  * boot_pde / boot_pt0 在 boot.S 的 .boot.bss 段中静态声明。
@@ -67,7 +68,7 @@ uint32_t setup_paging_c(void)
      * 物理页 0 -> 虚拟页 0, 物理页 1 -> 虚拟页 1, ...
      */
     for (i = 0; i < 1024; i++) {
-        boot_pt0[i] = (uint32_t)(i * 4096) | BOOT_PAGE_PRESENT | BOOT_PAGE_RW;
+        boot_pt0[i] = (uint32_t)(i * 4096) | BOOT_PAGE_PRESENT | BOOT_PAGE_RW | BOOT_PAGE_USER;
     }
 
     /*
@@ -75,7 +76,7 @@ uint32_t setup_paging_c(void)
      * 虚拟 0x00000000-0x003FFFFF -> 物理 0x00000000-0x003FFFFF
      * 保证开启分页后，当前 EIP 所在的引导代码仍可取指执行
      */
-    boot_pde[0] = (uint32_t)boot_pt0 | BOOT_PAGE_PRESENT | BOOT_PAGE_RW;
+    boot_pde[0] = (uint32_t)boot_pt0 | BOOT_PAGE_PRESENT | BOOT_PAGE_RW | BOOT_PAGE_USER;
 
     /*
      * 步骤 4：PDE[768] — 高半核映射
@@ -83,7 +84,7 @@ uint32_t setup_paging_c(void)
      * 内核在物理 1MB，映射后虚拟地址为 KERNEL_VMA + 1MB
      * VGA 缓冲区在物理 0xB8000，映射后虚拟地址为 KERNEL_VMA + 0xB8000
      */
-    boot_pde[768] = (uint32_t)boot_pt0 | BOOT_PAGE_PRESENT | BOOT_PAGE_RW;
+    boot_pde[768] = (uint32_t)boot_pt0 | BOOT_PAGE_PRESENT | BOOT_PAGE_RW | BOOT_PAGE_USER;
 
     /*
      * 步骤 5：PDE[1023] — 递归映射
@@ -91,7 +92,7 @@ uint32_t setup_paging_c(void)
      *   虚拟 0xFFFFF000  访问页目录（PDE[1023] 的 PTE[1023] = PDE 自身）
      *   虚拟 0xFFC00000 + i*4096  访问页表 i
      */
-    boot_pde[1023] = (uint32_t)boot_pde | BOOT_PAGE_PRESENT | BOOT_PAGE_RW;
+    boot_pde[1023] = (uint32_t)boot_pde | BOOT_PAGE_PRESENT | BOOT_PAGE_RW | BOOT_PAGE_USER;
 
     /* 返回页目录物理地址，供 boot.S 写入 CR3 寄存器 */
     return (uint32_t)boot_pde;
