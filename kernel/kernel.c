@@ -104,6 +104,7 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     extern void user_entry(void);
     process_init();
     process_create("idle", idle);
+    kprintf("Creating user process...\n");
     process_create_user("shell", (void (*)(void))user_entry, 0x301000);
     kprintf("System ready. Tasks scheduled by IRQ0.\n");
 
