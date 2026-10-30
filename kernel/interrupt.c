@@ -5,6 +5,7 @@
 #include "../include/gdt.h"
 #include "../include/mmu.h"
 #include "../include/pit.h"
+#include "../include/syscall.h"
 #include "../include/process.h"
 
 /* 定义中断处理函数指针数组，保存每个中断向量的C处理函数 */
@@ -123,6 +124,17 @@ void interrupt_handler(struct pt_regs *regs) {
         }
         pic_send_eoi(regs->int_no - IRQ0);
         /* IRQ0：时钟中断，累加 tick */
+        /* 系统调用 int 0x80 */
+
+        if (regs->int_no == 128) {
+
+            syscall_handler(regs);
+
+            return;
+
+        }
+
+
         if (regs->int_no == IRQ0) {
             timer_handler();
             schedule();

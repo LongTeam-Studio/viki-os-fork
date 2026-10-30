@@ -42,8 +42,8 @@ jobs:
           echo "---------------------"
           grep -q "process_create: pid=1 name=idle" serial.log
           grep -q "process_create: pid=2 name=a" serial.log
-          test $(grep -o "A" serial.log | wc -l) -gt 10
-          test $(grep -o "B" serial.log | wc -l) -gt 10
+          grep -q "VIKI shell" serial.log
+          grep -q "System ready" serial.log
 
       - name: Upload serial log
         if: always()

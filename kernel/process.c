@@ -1,6 +1,7 @@
 #include "../include/process.h"
 #include "../include/pmm.h"
 #include "../include/vga.h"
+#include "../include/tss.h"
 
 /* 内部 helper：不依赖外部 libc，freestanding 环境自带 */
 static void mem_zero(void *dst, uint32_t n) {
@@ -146,5 +147,61 @@ void schedule(void) {
 
     next->state = TASK_RUNNING;
     next->next = 0;
+    if (next->kstack_top) {
+        tss_set_esp0(next->kstack_top);
+    }
+
     current_process = next;
+}
+
+/* 创建 ring3 用户进程 */
+process_t *process_create_user(const char *name, void (*entry)(void),
+                               uint32_t user_stack_top) {
+    process_t *proc = (process_t *)pmm_alloc_page();
+    if (!proc) return 0;
+    mem_zero(proc, sizeof(process_t));
+
+    proc->pid = next_pid++;
+    str_copy(proc->name, name);
+    proc->state = TASK_READY;
+    proc->cr3 = 0;
+
+    uint32_t *kstack = (uint32_t *)pmm_alloc_page();
+    if (!kstack) return 0;
+    proc->kstack_top = (uint32_t)kstack + 4096;
+
+    uint32_t *sp = (uint32_t *)proc->kstack_top;
+
+    *(--sp) = 0x23;
+    *(--sp) = user_stack_top;
+    *(--sp) = 0x202;
+    *(--sp) = 0x1B;
+    *(--sp) = (uint32_t)entry;
+    *(--sp) = 0;
+    *(--sp) = 0;
+    *(--sp) = 0x23;
+    *(--sp) = 0x23;
+    *(--sp) = 0x23;
+    *(--sp) = 0x23;
+    *(--sp) = 0;
+    *(--sp) = 0;
+    *(--sp) = 0;
+    *(--sp) = 0;
+    *(--sp) = 0;
+    *(--sp) = 0;
+    *(--sp) = 0;
+    *(--sp) = 0;
+    *(--sp) = 0;
+
+    proc->esp = (uint32_t)sp;
+
+    proc->next = 0;
+    if (ready_queue_tail) {
+        ready_queue_tail->next = proc;
+    } else {
+        ready_queue_head = proc;
+    }
+    ready_queue_tail = proc;
+
+    return proc;
 }

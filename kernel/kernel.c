@@ -1,5 +1,6 @@
 #include "../include/multiboot2.h"
 #include "../include/vga.h"
+#include "../include/tss.h"
 #include "../include/gdt.h"
 #include "../include/interrupt.h"
 #include "../include/memory.h"
@@ -57,6 +58,10 @@ void kernel_main(unsigned int magic, unsigned int addr) {
 
     /* 初始化 GDT（在高半核地址下工作，段描述符 base=0，依赖分页映射） */
     gdt_init();
+    /* 初始化 TSS：先用当前的引导栈顶作为 esp0 */
+    extern uint8_t boot_stack_top[];
+    tss_init((uint32_t)boot_stack_top);
+    kprintf("TSS initialized successfully!\n");
     kprintf("GDT initialized successfully!\n");
 
     /* 初始化中断系统：IDT + 8259 PIC + 异常/中断处理函数 */
@@ -96,10 +101,10 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     kprintf("Kernel entered protected mode with paging!\n");
     kprintf("Running in high-half kernel at 0xC0100000+\n");
     /* 创建三个内核线程，时钟中断负责轮转调度 */
+    extern void user_entry(void);
     process_init();
     process_create("idle", idle);
-    process_create("a", thread_a);
-    process_create("b", thread_b);
+    process_create_user("shell", (void (*)(void))user_entry, 0x301000);
     kprintf("System ready. Tasks scheduled by IRQ0.\n");
 
     /* 最后一刻才开中断，避免前面的输出被 IRQ0 撕裂 */

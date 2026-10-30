@@ -42,4 +42,6 @@ void process_init(void);
 process_t *process_create(const char *name, void (*entry)(void));
 void schedule(void);
 
+process_t *process_create_user(const char *name, void (*entry)(void), uint32_t user_stack_top);
+
 #endif
