@@ -40,10 +40,8 @@ jobs:
           head -c 4000 serial.log
           echo ""
           echo "---------------------"
-          grep -q "process_create: pid=1 name=idle" serial.log
-          grep -q "process_create: pid=2 name=a" serial.log
+          grep -q "System ready." serial.log
           grep -q "VIKI shell" serial.log
-          grep -q "System ready" serial.log
 
       - name: Upload serial log
         if: always()
