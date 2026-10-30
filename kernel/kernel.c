@@ -1,29 +1,29 @@
 #include "../include/multiboot2.h"
 #include "../include/vga.h"
-#include "../include/tss.h"
 #include "../include/gdt.h"
 #include "../include/interrupt.h"
 #include "../include/memory.h"
 #include "../include/pmm.h"
 #include "../include/mmu.h"
-#include "../include/process.h"
-#include "../include/pit.h"
+#include "tss.h" //注意，此处用于TSS
+#include "syscall.h"  //新增syscall
+#include "keyboard.h"
+#include "process.h"
+
+extern uint8_t boot_stack_top[];   /* 来自 boot.S，引导栈顶 */
+extern void enter_ring3(uint32_t entry, uint32_t stack_top);
+extern void user_entry(void);
 
 /*
- * kernel_main - 内核主函数（C 语言入口）
  *
- * 启动流程：
- *   1. boot.S 在物理地址 1MB 设置初始页表，开启分页，
- *      跳转到高半核虚拟地址 0xC0100000+ 调用本函数
- *   2. 本函数依次初始化各子系统：VGA、GDT、中断、PMM、VMM
- *   3. 此后内核运行在高半核虚拟地址空间，用户态地址（0-3GB）预留
  *
- * 参数：
- *   magic - multiboot2 引导魔数，用于验证引导方式正确性
- *   addr  - multiboot2 信息结构体地址（物理地址，identity 映射保证可访问）
+ *
+ * 多线程处理，不知道咋写介绍，就当做手工水印，空着
+ *
+ *
+ *
  */
 
-/* 测试线程：时钟中断每 10ms 抢占换人，屏幕看到交替字符 */
 static void thread_a(void) {
     while (1) {
         vga_putc('A');
@@ -38,9 +38,23 @@ static void thread_b(void) {
 
 static void idle(void) {
     while (1) {
-        vga_putc('.');
+        __asm__ volatile ("hlt");
     }
 }
+
+/*
+ * kernel_main - 内核主函数（C 语言入口）
+ *
+ * 启动流程：
+ *   1. boot.S 在物理地址 1MB 设置初始页表，开启分页，
+ *      跳转到高半核虚拟地址 0xC0100000+ 调用本函数
+ *   2. 本函数依次初始化各子系统：VGA、GDT、中断、PMM、VMM
+ *   3. 此后内核运行在高半核虚拟地址空间，用户态地址（0-3GB）预留
+ *
+ * 参数：
+ *   magic - multiboot2 引导魔数，用于验证引导方式正确性
+ *   addr  - multiboot2 信息结构体地址（物理地址，identity 映射保证可访问）
+ */
 void kernel_main(unsigned int magic, unsigned int addr) {
     /* 检查是否由 multiboot2 兼容的引导程序加载 */
     if (magic != MULTIBOOT2_BOOTLOADER_MAGIC) {
@@ -58,16 +72,19 @@ void kernel_main(unsigned int magic, unsigned int addr) {
 
     /* 初始化 GDT（在高半核地址下工作，段描述符 base=0，依赖分页映射） */
     gdt_init();
-    /* 初始化 TSS：先用当前的引导栈顶作为 esp0 */
-    extern uint8_t boot_stack_top[];
+    kprintf("GDT initialized successfully!\n");
+
+    /* 初始化 TSS：esp0 指向引导栈顶，ring3 进 ring0 时 CPU 会自动切换到这个栈 */
     tss_init((uint32_t)boot_stack_top);
     kprintf("TSS initialized successfully!\n");
-    kprintf("GDT initialized successfully!\n");
 
     /* 初始化中断系统：IDT + 8259 PIC + 异常/中断处理函数 */
     interrupt_init();
     kprintf("Interrupt subsystem initialized successfully!\n");
-
+    syscall_init();
+    syscall_selftest();
+    keyboard_init();
+    kprintf("Keyboard initialized.\n");
     /* 打印 multiboot2 提供的物理内存布局 */
     memory_print_map(addr);
 
@@ -100,16 +117,9 @@ void kernel_main(unsigned int magic, unsigned int addr) {
 
     kprintf("Kernel entered protected mode with paging!\n");
     kprintf("Running in high-half kernel at 0xC0100000+\n");
-    /* 创建三个内核线程，时钟中断负责轮转调度 */
-    extern void user_entry(void);
+    kprintf("System ready.\n");
     process_init();
     process_create("idle", idle);
-    kprintf("Creating user process...\n");
     process_create_user("shell", (void (*)(void))user_entry, 0x301000);
-    kprintf("System ready. Tasks scheduled by IRQ0.\n");
-
-    /* 最后一刻才开中断，避免前面的输出被 IRQ0 撕裂 */
-    __asm__ volatile ("sti");
-
     while (1) { __asm__ volatile ("hlt"); }
 }

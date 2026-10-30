@@ -1,93 +1,143 @@
 #include "../include/process.h"
 #include "../include/pmm.h"
-#include "../include/vga.h"
+#include "../include/string.h"
 #include "../include/tss.h"
+#include "../include/vga.h"
 
-/* 内部 helper：不依赖外部 libc，freestanding 环境自带 */
-static void mem_zero(void *dst, uint32_t n) {
-    uint8_t *d = (uint8_t *)dst;
-    while (n--) *d++ = 0;
-}
-
-static void str_copy(char *dst, const char *src) {
-    while ((*dst++ = *src++));
-}
-
-/*
- * 就绪队列
- * 设计思路：单链表 + 头尾指针，O(1) 入队、O(1) 出队。
- * 调度器要按时间片轮转，队列顺序即执行顺序。
- */
 static process_t *ready_queue_head = 0;
 static process_t *ready_queue_tail = 0;
-
-/* 当前运行的进程。初始指向 boot_process，让第一次调度前有"上一个"可记录。 */
 process_t *current_process = 0;
-
-/* 占位进程：process_init 之后、第一个真进程创建之前充当 current_process */
-static process_t boot_process;
-
 static uint32_t next_pid = 1;
+
+static process_t boot_process;   /* 占位，第一次调度前作为 current_process */
 
 void process_init(void) {
     ready_queue_head = 0;
     ready_queue_tail = 0;
     next_pid = 1;
 
-    /* 清空占位进程，把它当作"boot 自己" */
-    mem_zero(&boot_process, sizeof(boot_process));
+    memset(&boot_process, 0, sizeof(boot_process));
     boot_process.pid = 0;
     boot_process.state = TASK_RUNNING;
-    str_copy(boot_process.name, "boot");
+    strcpy(boot_process.name, "boot");
     current_process = &boot_process;
 }
 
-/*
- * 创建内核线程
- *
- * 栈帧布局（从高地址往低地址）：
- *   [栈顶]
- *   entry      <- ret 地址，将来 switch_to 的 ret 跳到这里
- *   0          <- ebp
- *   0          <- ebx
- *   0          <- esi
- *   0          <- edi   <- esp 指向这里
- *
- * 本 PR 只负责"造出这个栈"和"塞进队列"，不负责真正切过去。
- * 实际切换（isr.S 保存/恢复 esp）由后续 PR 完成。
- */
 process_t *process_create(const char *name, void (*entry)(void)) {
     process_t *proc = (process_t *)pmm_alloc_page();
     if (!proc) return 0;
-    mem_zero(proc, sizeof(process_t));
+    memset(proc, 0, sizeof(process_t));
 
     proc->pid = next_pid++;
-    str_copy(proc->name, name);
+    strcpy(proc->name, name);
     proc->state = TASK_READY;
     proc->cr3 = 0;
-    proc->kstack_top = 0;  /* 内核线程暂不需要单独的 ring0 栈 */
 
-    /* 分配一页内核栈 */
     uint32_t *stack = (uint32_t *)pmm_alloc_page();
     if (!stack) return 0;
-    uint32_t *sp = (uint32_t *)((uint32_t)stack + 4096);
+    uint32_t stack_top = (uint32_t)stack + 4096;
 
-    /* 构造中断返回栈，与 RESTORE_ALL 的 pop 顺序一致：
-     *   [pt_regs_ptr]                    ← addl $4 跳过
-     *   edi,esi,ebp,esp,ebx,edx,ecx,eax  ← popa
-     *   gs,fs,es,ds                      ← popl
-     *   int_no,err_code                  ← addl $8 跳过
-     *   eip,cs,eflags                    ← iret（ring0，3 字段）
+    uint32_t *sp = (uint32_t *)stack_top;
+
+    /* 构造中断返回栈（RESTORE_ALL 按此顺序弹出）：
+     *   [pt_regs_ptr]   ← addl $4 跳过
+     *   edi..eax        ← popa（8 个）
+     *   gs,fs,es,ds     ← 4 个
+     *   int_no,err_code ← addl $8 跳过
+     *   eip,cs,eflags   ← iret
      */
     *(--sp) = 0x202;              /* eflags: IF=1 */
     *(--sp) = 0x08;               /* cs: 内核代码段 */
-    *(--sp) = (uint32_t)entry;    /* eip */
+    *(--sp) = (uint32_t)entry;    /* eip: 入口 */
     *(--sp) = 0;                  /* err_code */
     *(--sp) = 0;                  /* int_no */
     *(--sp) = 0x10;               /* ds */
     *(--sp) = 0x10;               /* es */
     *(--sp) = 0x10;               /* fs */
     *(--sp) = 0x10;               /* gs */
+    *(--sp) = 0;                  /* eax */
+    *(--sp) = 0;                  /* ecx */
+    *(--sp) = 0;                  /* edx */
+    *(--sp) = 0;                  /* ebx */
+    *(--sp) = 0;                  /* esp (pusha 槽位，忽略) */
+    *(--sp) = 0;                  /* ebp */
+    *(--sp) = 0;                  /* esi */
+    *(--sp) = 0;                  /* edi */
+    *(--sp) = 0;                  /* pt_regs_ptr 占位 */
+
+    proc->esp = (uint32_t)sp;
+
+    proc->next = 0;
+    if (ready_queue_tail) {
+        ready_queue_tail->next = proc;
+    } else {
+        ready_queue_head = proc;
+    }
+    ready_queue_tail = proc;
+
+    return proc;
+}
+
+void schedule(void) {
+    if (!ready_queue_head) return;
+
+    if (current_process && current_process->state == TASK_RUNNING) {
+        current_process->state = TASK_READY;
+        ready_queue_tail->next = current_process;
+        ready_queue_tail = current_process;
+        current_process->next = 0;
+    }
+
+    process_t *next = ready_queue_head;
+    ready_queue_head = next->next;
+    if (!ready_queue_head) ready_queue_tail = 0;
+
+    next->state = TASK_RUNNING;
+    process_t *prev = current_process;
+    current_process = next;
+
+    if (next->cr3 && prev->cr3 && next->cr3 != prev->cr3) {
+        __asm__ volatile("mov %0, %%cr3" :: "r"(next->cr3));
+    }
+
+    /* 切到用户进程前，更新 TSS.esp0 指向它的 ring0 内核栈 */
+    if (next->kstack_top) {
+        tss_set_esp0(next->kstack_top);
+    }
+    /* switch_to 已废弃：中断返回路径会从 current_process->esp 恢复 */
+}
+
+
+process_t *process_create_user(const char *name, void (*entry)(void),
+                               uint32_t user_stack_top) {
+    process_t *proc = (process_t *)pmm_alloc_page();
+    if (!proc) return 0;
+    memset(proc, 0, sizeof(process_t));
+
+    proc->pid = next_pid++;
+    strcpy(proc->name, name);
+    proc->state = TASK_READY;
+    proc->cr3 = 0;
+
+    /* ring0 内核栈：ring3 -> ring0 时 CPU 从 TSS.esp0 加载 */
+    uint32_t *kstack = (uint32_t *)pmm_alloc_page();
+    if (!kstack) return 0;
+    proc->kstack_top = (uint32_t)kstack + 4096;
+
+    /* 手工构造中断栈，与 SAVE_ALL + iret(5 字段) 布局一致 */
+    uint32_t *sp = (uint32_t *)proc->kstack_top;
+
+    *(--sp) = 0x23;               /* ss: 用户数据段 | RPL3 */
+    *(--sp) = user_stack_top;     /* useresp */
+    *(--sp) = 0x202;              /* eflags: IF=1 */
+    *(--sp) = 0x1B;               /* cs: 用户代码段 | RPL3 */
+    *(--sp) = (uint32_t)entry;    /* eip */
+    *(--sp) = 0;                  /* err_code */
+    *(--sp) = 0;                  /* int_no */
+    *(--sp) = 0x23;               /* ds */
+    *(--sp) = 0x23;               /* es */
+    *(--sp) = 0x23;               /* fs */
+    *(--sp) = 0x23;               /* gs */
     *(--sp) = 0;                  /* eax */
     *(--sp) = 0;                  /* ecx */
     *(--sp) = 0;                  /* edx */
@@ -100,101 +150,6 @@ process_t *process_create(const char *name, void (*entry)(void)) {
 
     proc->esp = (uint32_t)sp;
 
-    /* 入队 */
-    proc->next = 0;
-    if (ready_queue_tail) {
-        ready_queue_tail->next = proc;
-    } else {
-        ready_queue_head = proc;
-    }
-    ready_queue_tail = proc;
-
-    vga_printf("process_create: pid=%u name=%s esp=0x%x\n",
-               proc->pid, proc->name, proc->esp);
-
-    return proc;
-}
-
-/*
- * schedule - 轮转调度
- *
- * 设计思路：中断返回路径（isr.S 的 RESTORE_ALL）会自动从
- * current_process->esp 恢复栈，所以这里只负责"选下一个"，不切栈。
- *
- * 调用时机：IRQ0 时钟中断的 EOI 之后，每 10ms 一次。
- */
-void schedule(void) {
-    if (!ready_queue_head) return;
-
-    /* 把当前进程放回队尾（如果还在运行态） */
-    if (current_process && current_process->state == TASK_RUNNING) {
-        current_process->state = TASK_READY;
-        current_process->next = 0;
-        if (ready_queue_tail) {
-            ready_queue_tail->next = current_process;
-        } else {
-            ready_queue_head = current_process;
-        }
-        ready_queue_tail = current_process;
-    }
-
-    /* 取队首作为下一个 */
-    process_t *next = ready_queue_head;
-    if (!next) return;
-
-    ready_queue_head = next->next;
-    if (!ready_queue_head) ready_queue_tail = 0;
-
-    next->state = TASK_RUNNING;
-    next->next = 0;
-    if (next->kstack_top) {
-        tss_set_esp0(next->kstack_top);
-    }
-
-    current_process = next;
-}
-
-/* 创建 ring3 用户进程 */
-process_t *process_create_user(const char *name, void (*entry)(void),
-                               uint32_t user_stack_top) {
-    process_t *proc = (process_t *)pmm_alloc_page();
-    if (!proc) return 0;
-    mem_zero(proc, sizeof(process_t));
-
-    proc->pid = next_pid++;
-    str_copy(proc->name, name);
-    proc->state = TASK_READY;
-    proc->cr3 = 0;
-
-    uint32_t *kstack = (uint32_t *)pmm_alloc_page();
-    if (!kstack) return 0;
-    proc->kstack_top = (uint32_t)kstack + 4096;
-
-    uint32_t *sp = (uint32_t *)proc->kstack_top;
-
-    *(--sp) = 0x23;
-    *(--sp) = user_stack_top;
-    *(--sp) = 0x202;
-    *(--sp) = 0x1B;
-    *(--sp) = (uint32_t)entry;
-    *(--sp) = 0;
-    *(--sp) = 0;
-    *(--sp) = 0x23;
-    *(--sp) = 0x23;
-    *(--sp) = 0x23;
-    *(--sp) = 0x23;
-    *(--sp) = 0;
-    *(--sp) = 0;
-    *(--sp) = 0;
-    *(--sp) = 0;
-    *(--sp) = 0;
-    *(--sp) = 0;
-    *(--sp) = 0;
-    *(--sp) = 0;
-    *(--sp) = 0;
-
-    proc->esp = (uint32_t)sp;
-
     proc->next = 0;
     if (ready_queue_tail) {
         ready_queue_tail->next = proc;
@@ -205,3 +160,8 @@ process_t *process_create_user(const char *name, void (*entry)(void),
 
     return proc;
 }
+
+void process_exit(void) {
+    while (1) { __asm__ volatile ("hlt"); }
+}
+

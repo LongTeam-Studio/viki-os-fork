@@ -15,7 +15,8 @@ static void gdt_set_gate(int num, uint32_t base, uint32_t limit, uint8_t access,
     gdt[num].access = access;
 }
 
-void gdt_set_gate_raw(int num, uint32_t base, uint32_t limit, uint8_t access, uint8_t granularity) {
+void gdt_set_gate_raw(int num, uint32_t base, uint32_t limit,
+                      uint8_t access, uint8_t granularity) {
     gdt_set_gate(num, base, limit, access, granularity);
 }
 

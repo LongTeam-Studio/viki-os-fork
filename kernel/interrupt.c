@@ -4,8 +4,9 @@
 #include "../include/vga.h"
 #include "../include/gdt.h"
 #include "../include/mmu.h"
-#include "../include/pit.h"
 #include "../include/syscall.h"
+#include "../include/keyboard.h"
+#include "../include/pit.h"
 #include "../include/process.h"
 
 /* 定义中断处理函数指针数组，保存每个中断向量的C处理函数 */
@@ -53,8 +54,8 @@ void pic_init(void) {
     outb(PIC1_DATA, a1);
     outb(PIC2_DATA, b1);
 
-    /* 屏蔽所有 IRQ，只放行 IRQ0（PIT 时钟） */
-    outb(PIC1_DATA, 0xfe);
+    /* 全部屏蔽，只在需要时打开特定IRQ */
+    outb(PIC1_DATA, 0xFC);
     outb(PIC2_DATA, 0xff);
 }
 
@@ -116,25 +117,18 @@ void interrupt_handler(struct pt_regs *regs) {
         /* 这里可以添加死循环或panic */
         while (1) { __asm__ volatile ("hlt"); }
     } 
+        /* 系统调用 int 0x80 */
+        else if (regs->int_no == SYSCALL_INT) {
+        syscall_handler(regs);
+         }
     /* 如果是硬件中断，发送EOI */
     else if (regs->int_no >= IRQ0 && regs->int_no <= IRQ15) {
+        if (regs->int_no == IRQ1) { keyboard_irq(); }
         /* 执行注册的处理函数，如果有的话 */
         if (interrupt_handlers[regs->int_no]) {
             interrupt_handlers[regs->int_no](regs);
         }
         pic_send_eoi(regs->int_no - IRQ0);
-        /* IRQ0：时钟中断，累加 tick */
-        /* 系统调用 int 0x80 */
-
-        if (regs->int_no == 128) {
-
-            syscall_handler(regs);
-
-            return;
-
-        }
-
-
         if (regs->int_no == IRQ0) {
             timer_handler();
             schedule();
@@ -233,6 +227,7 @@ void interrupt_init(void) {
 
     /* 初始化8259PIC */
     pic_init();
-    /* 初始化 PIT，100Hz，产生 IRQ0 */
-    pit_init(100);
+    /* 打开 CPU 中断总开关，让 IRQ 能进 CPU */
+    __asm__ volatile ("sti");
 }
+

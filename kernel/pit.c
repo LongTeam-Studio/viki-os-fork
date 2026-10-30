@@ -21,7 +21,3 @@ static volatile uint64_t system_ticks = 0;
 void timer_handler(void) {
     system_ticks++;
 }
-
-uint64_t timer_get_ticks(void) {
-    return system_ticks;
-}

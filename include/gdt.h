@@ -3,21 +3,28 @@
 
 #include <stdint.h>
 
-#define GDT_ENTRIES 8
-#define GDT_SIZE (GDT_ENTRIES * 8)
+//#define GDT_ENTRIES 8
+//#define GDT_SIZE (GDT_ENTRIES * 8)
+
+#define GDT_ENTRIES 8   /* 7 是 TSS 高 8 字节槽，8 保持 8 字节对齐 */
+
+#define GDT_TSS 5
+#define GDT_TSS_SEL (GDT_TSS << 3)
+
+void gdt_set_gate_raw(int num, uint32_t base, uint32_t limit,
+                      uint8_t access, uint8_t granularity);
+void gdt_set_gate_raw_high(int num, uint8_t base_high);
 
 #define GDT_NULL 0
 #define GDT_KERNEL_CODE 1
 #define GDT_KERNEL_DATA 2
 #define GDT_USER_CODE 3
 #define GDT_USER_DATA 4
-#define GDT_TSS 5
 
 #define GDT_KERNEL_CODE_SEL (GDT_KERNEL_CODE << 3)
 #define GDT_KERNEL_DATA_SEL (GDT_KERNEL_DATA << 3)
 #define GDT_USER_CODE_SEL ((GDT_USER_CODE << 3) | 3)
 #define GDT_USER_DATA_SEL ((GDT_USER_DATA << 3) | 3)
-#define GDT_TSS_SEL (GDT_TSS << 3)
 
 struct gdt_entry {
     uint16_t limit_low;
@@ -34,8 +41,6 @@ struct gdt_ptr {
 } __attribute__((packed));
 
 void gdt_init(void);
-void gdt_set_gate_raw(int num, uint32_t base, uint32_t limit, uint8_t access, uint8_t granularity);
-void gdt_set_gate_raw_high(int num, uint8_t base_high);
 
 extern void gdt_flush(uint32_t gdt_ptr);
 
