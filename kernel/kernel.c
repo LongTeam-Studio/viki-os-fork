@@ -1,5 +1,6 @@
 #include "../include/multiboot2.h"
 #include "../include/vga.h"
+#include "../include/kmalloc.h"
 #include "../include/gdt.h"
 #include "../include/interrupt.h"
 #include "../include/memory.h"
@@ -121,5 +122,18 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     process_init();
     process_create("idle", idle);
     process_create_user("shell", (void (*)(void))user_entry, 0x301000);
+    /* KMALLOC 测试 */
+    kmalloc_init();
+    void *p1 = kmalloc(32);
+    void *p2 = kmalloc(64);
+    void *p3 = kmalloc(2048);
+    kprintf("kmalloc test: p1=%p, p2=%p, p3=%p\n", p1, p2, p3);
+    kfree(p1);
+    kfree(p2);
+    kfree(p3);
+    kprintf("kfree test PASSED!\n");
+    /* 最后一刻才开中断，让 Ring3 和调度器跑起来 */
+    __asm__ volatile ("sti");
+
     while (1) { __asm__ volatile ("hlt"); }
 }
