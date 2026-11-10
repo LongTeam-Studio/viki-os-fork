@@ -1,5 +1,6 @@
 #include "../include/multiboot2.h"
 #include "../include/vga.h"
+#include "../include/kmalloc.h"
 #include "../include/gdt.h"
 #include "../include/interrupt.h"
 #include "../include/memory.h"
@@ -81,6 +82,16 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     process_create("test_a", 0);
     process_create("test_b", 0);
     kprintf("System ready.\n");
+    /* KMALLOC 测试 */
+    kmalloc_init();
+    void *p1 = kmalloc(32);
+    void *p2 = kmalloc(64);
+    void *p3 = kmalloc(2048);
+    kprintf("kmalloc test: p1=%p, p2=%p, p3=%p\n", p1, p2, p3);
+    kfree(p1);
+    kfree(p2);
+    kfree(p3);
+    kprintf("kfree test PASSED!\n");
     /* PIT 验证：观察 tick 累加 */
     {
         uint64_t last_tick = 0;
