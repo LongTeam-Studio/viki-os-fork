@@ -5,10 +5,17 @@ void outb(uint16_t port, uint8_t val) {
     __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
 }
 
-/* 端口输入函数 */
+/* 端口输入函数 (8 位) */
 uint8_t inb(uint16_t port) {
     uint8_t ret;
     __asm__ volatile ("inb %1, %0" : "=a"(ret) : "Nd"(port));
+    return ret;
+}
+
+/* 端口输入函数 (16 位，给硬盘读取用) */
+uint16_t inw(uint16_t port) {
+    uint16_t ret;
+    __asm__ volatile ("inw %1, %0" : "=a"(ret) : "Nd"(port));
     return ret;
 }
 

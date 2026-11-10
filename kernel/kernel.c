@@ -10,6 +10,7 @@
 #include "syscall.h"  //新增syscall
 #include "keyboard.h"
 #include "process.h"
+#include "../include/ata.h" //这个不必多言，文件驱动
 
 extern uint8_t boot_stack_top[];   /* 来自 boot.S，引导栈顶 */
 extern void enter_ring3(uint32_t entry, uint32_t stack_top);
@@ -19,7 +20,7 @@ extern void user_entry(void);
  *
  *
  *
- * 多线程处理，不知道咋写介绍，就当做手工水印，空着
+ * 多线程处理，不知道咋写介绍，就当做手工水印，空着~(笑
  *
  *
  *
@@ -132,6 +133,13 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     kfree(p2);
     kfree(p3);
     kprintf("kfree test PASSED!\n");
+    /* ATA 硬盘测试 */
+    ata_init();
+      if (ata_drive_present()) {
+      uint16_t buf[256]; /* 512 bytes */
+      ata_read_sectors(0, 1, buf); /* 读第 0 个扇区 */
+      kprintf("ATA Read Sector 0 signature: 0x%x 0x%x\n", buf[0], buf[1]);
+    }
     /* 最后一刻才开中断，让 Ring3 和调度器跑起来 */
     __asm__ volatile ("sti");
 

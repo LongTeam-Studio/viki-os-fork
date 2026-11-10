@@ -10,3 +10,5 @@
 .opencode
 *.excalidraw
 *.drawio
+disk.img
+*.log
