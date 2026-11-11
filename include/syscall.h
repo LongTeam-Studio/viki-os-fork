@@ -7,6 +7,8 @@
 #define SYS_exit   1
 #define SYS_write  4
 #define SYS_getpid 20
+#define SYS_ls   100
+#define SYS_cat  101
 
 void syscall_init(void);
 void syscall_handler(struct pt_regs *regs);

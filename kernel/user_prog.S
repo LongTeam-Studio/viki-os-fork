@@ -4,6 +4,7 @@
 .set SYS_EXIT,  1
 .set SYS_READ,  3
 .set SYS_WRITE, 4
+.set SYS_LS, 100
 
 user_entry:
     movl $SYS_WRITE, %eax
@@ -56,6 +57,11 @@ have_args:
     call scmp
     testl %eax, %eax
     jz cmd_help
+    movl %esi, %eax
+    movl $s_ls, %edx
+    call scmp
+    testl %eax, %eax
+    jz cmd_ls
 
     movl %esi, %eax
     movl $s_echo, %edx
@@ -104,6 +110,11 @@ cmd_echo:
     int $0x80
 .echo_nl:
     call print_nl
+    jmp main_loop
+
+cmd_ls:
+    movl $SYS_LS, %eax
+    int $0x80
     jmp main_loop
 
 cmd_exit:
@@ -228,6 +239,8 @@ s_echo:
     .asciz "echo"
 s_exit:
     .asciz "exit"
+s_ls:
+    .asciz "ls"
 
 msg_help:
     .ascii "commands:\n  help        - this\n  echo <text> - print text\n  exit        - halt\n"

@@ -2,7 +2,7 @@
 #include "../include/vga.h"
 #include "../include/interrupt.h"
 #include "../include/keyboard.h"
-
+#include "../include/ext2.h"
 /*
  * 系统调用分发
  * 参数约定（Linux i386 风格）：
@@ -49,6 +49,15 @@ void syscall_handler(struct pt_regs *regs) {
         case SYS_getpid:
             regs->eax = 1;
             break;
+        case SYS_ls:
+           ext2_list_root();  /* 直接调用咱们刚才写好的打印目录函数 */
+           regs->eax = 0;
+           break;
+
+        case SYS_cat:
+        /* 暂时留空，下一波再写读文件逻辑 */
+        regs->eax = 0;
+        break;
 
         default:
             vga_printf("[syscall] unknown nr=%u\n", nr);

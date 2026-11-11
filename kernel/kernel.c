@@ -142,6 +142,7 @@ void kernel_main(unsigned int magic, unsigned int addr) {
       kprintf("ATA Read Sector 0 signature: 0x%x 0x%x\n", buf[0], buf[1]);
     /* 新增：测试 EXT2 */
     ext2_init();
+    ext2_list_root();
     }
     /* 最后一刻才开中断，让 Ring3 和调度器跑起来 */
     __asm__ volatile ("sti");
